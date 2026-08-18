@@ -18,6 +18,37 @@
         });
     };
 
+    const INSTALL_PROMPT_SEEN_KEY = 'menaAlMananInstallPromptSeenForever';
+    const INSTALL_PROMPT_DISMISSED_KEY = 'menaAlMananInstallPromptDismissedForever';
+
+    const hasPermanentInstallPromptRecord = () => {
+        try {
+            if (
+                localStorage.getItem(INSTALL_PROMPT_SEEN_KEY) === '1' ||
+                localStorage.getItem(INSTALL_PROMPT_DISMISSED_KEY) === '1'
+            ) return true;
+        } catch (error) {
+            console.warn('تعذر قراءة حالة نافذة التثبيت من localStorage:', error);
+        }
+
+        return document.cookie.split('; ').some(cookie => (
+            cookie === `${INSTALL_PROMPT_SEEN_KEY}=1` ||
+            cookie === `${INSTALL_PROMPT_DISMISSED_KEY}=1`
+        ));
+    };
+
+    const savePermanentInstallPromptRecord = () => {
+        try {
+            localStorage.setItem(INSTALL_PROMPT_SEEN_KEY, '1');
+            localStorage.setItem(INSTALL_PROMPT_DISMISSED_KEY, '1');
+        } catch (error) {
+            console.warn('تعذر حفظ حالة نافذة التثبيت في localStorage:', error);
+        }
+
+        document.cookie = `${INSTALL_PROMPT_SEEN_KEY}=1; max-age=315360000; path=/; SameSite=Lax`;
+        document.cookie = `${INSTALL_PROMPT_DISMISSED_KEY}=1; max-age=315360000; path=/; SameSite=Lax`;
+    };
+
     const hideInstallOverlay = () => {
         const overlay = document.getElementById('pwaInstallOverlay');
         if (overlay) overlay.classList.add('pwa-hidden');
@@ -25,7 +56,10 @@
 
     const showInstallOverlay = () => {
         if (isStandalone() || !isMobileDevice()) return;
-        if (sessionStorage.getItem('menaAlMananInstallPromptDismissed') === '1') return;
+        if (hasPermanentInstallPromptRecord()) return;
+
+        // تسجيل الظهور قبل إنشاء النافذة لضمان ظهورها مرة واحدة فقط حتى لو لم يُضغط أي زر.
+        savePermanentInstallPromptRecord();
 
         const overlay = document.createElement('div');
         overlay.id = 'pwaInstallOverlay';
@@ -65,6 +99,7 @@
         });
 
         dismissButton.addEventListener('click', () => {
+            savePermanentInstallPromptRecord();
             sessionStorage.setItem('menaAlMananInstallPromptDismissed', '1');
             hideInstallOverlay();
         });

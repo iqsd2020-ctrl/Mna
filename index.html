@@ -550,6 +550,36 @@
             color: var(--text-main);
         }
 
+        .search-result-type {
+            display: inline-block;
+            margin-bottom: 6px;
+            padding: 2px 8px;
+            border-radius: 999px;
+            font-family: var(--font-ui);
+            font-size: 0.72rem;
+            font-weight: 700;
+            line-height: 1.5;
+        }
+
+        .result-type-heading { border-right: 4px solid var(--primary-color); }
+        .result-type-text { border-right: 3px solid var(--border-color); }
+        .result-type-footnote { border-right: 3px solid var(--text-muted); }
+
+        .search-result-type-heading {
+            background-color: rgba(140, 106, 67, 0.18);
+            color: var(--primary-color);
+        }
+
+        .search-result-type-text {
+            background-color: rgba(107, 114, 128, 0.14);
+            color: var(--text-muted);
+        }
+
+        .search-result-type-footnote {
+            background-color: rgba(107, 114, 128, 0.10);
+            color: var(--text-muted);
+        }
+
         .index-toggle {
             display: inline-flex;
             align-items: center;
@@ -687,6 +717,39 @@
         }
 
         .reader-container p { margin-bottom: 18px; }
+
+        /* تمييز الهوامش بصريًا مع إبقائها في نهاية محتوى الصفحة */
+        .footnotes {
+            margin-top: 30px;
+            padding: 14px 16px 10px;
+            border-top: 2px solid var(--border-color);
+            border-radius: 8px;
+            background-color: rgba(140, 106, 67, 0.07);
+            color: var(--text-muted);
+            font-family: var(--font-ui);
+            font-size: 0.72em;
+            line-height: 1.75;
+            text-align: right;
+        }
+
+        .footnotes-title {
+            margin-bottom: 9px;
+            color: var(--primary-color);
+            font-family: var(--font-ui);
+            font-size: 1.05em;
+            font-weight: 700;
+        }
+
+        .footnotes p {
+            margin: 0 0 7px;
+            font-family: var(--font-ui);
+            font-size: 1em;
+            line-height: 1.75;
+            text-align: right;
+        }
+
+        .footnotes p:last-child { margin-bottom: 0; }
+        .footnotes p:empty { min-height: 5px; margin-bottom: 0; }
         
         .reader-container p[style*="color:red"] {
             color: var(--accent-red) !important;
@@ -835,7 +898,7 @@
             <div class="settings-title">حجم الخط (للقراءة)</div>
             <div class="font-slider-group">
                 <span class="font-slider-label">A</span>
-                <input type="range" id="fontSizeSlider" min="14" max="40" step="2" value="22" aria-label="حجم الخط">
+                <input type="range" id="fontSizeSlider" min="14" max="40" step="2" value="14" aria-label="حجم الخط">
                 <span class="font-slider-label font-slider-label-large">A</span>
                 <button class="option-btn font-reset-btn" id="btnFontReset" type="button">افتراضي</button>
             </div>
@@ -1002,13 +1065,48 @@
         const LAST_READING_KEY = 'menaAlMananLastReadingPosition';
         const READER_SETTINGS_KEY = 'menaAlMananReaderSettings';
 
+        function readLastReadingPositions() {
+            const savedPositions = localStorage.getItem(LAST_READING_KEY);
+            if (!savedPositions) return {};
+
+            try {
+                const parsed = JSON.parse(savedPositions);
+                if (!parsed || typeof parsed !== 'object') return {};
+
+                // دعم موضع القراءة القديم المحفوظ لكتاب واحد وتحويله تدريجيًا إلى الصيغة الجديدة.
+                if (parsed.bookId && Number.isInteger(Number(parsed.pageIndex))) {
+                    return {
+                        [parsed.bookId]: {
+                            bookId: parsed.bookId,
+                            pageIndex: Number(parsed.pageIndex)
+                        }
+                    };
+                }
+
+                return parsed;
+            } catch (error) {
+                console.warn('تعذر قراءة مواضع القراءة المحفوظة:', error);
+                return {};
+            }
+        }
+
+        function getSavedPageIndex(bookId) {
+            const savedPositions = readLastReadingPositions();
+            const savedPosition = savedPositions[bookId];
+            const pageIndex = Number(savedPosition?.pageIndex);
+
+            return Number.isInteger(pageIndex) && pageIndex >= 0 ? pageIndex : 0;
+        }
+
         function saveLastReadingPosition() {
             if (!currentOpenBookId) return;
 
-            localStorage.setItem(LAST_READING_KEY, JSON.stringify({
+            const savedPositions = readLastReadingPositions();
+            savedPositions[currentOpenBookId] = {
                 bookId: currentOpenBookId,
                 pageIndex: currentPageIndex
-            }));
+            };
+            localStorage.setItem(LAST_READING_KEY, JSON.stringify(savedPositions));
         }
 
         function saveReaderSettings() {
@@ -1064,7 +1162,7 @@
             }
         }
 
-        async function openBook(bookId, pageToOpen = 0, isFromSearch = false) {
+        async function openBook(bookId, pageToOpen = null, isFromSearch = false) {
             if (!isFromSearch) {
                 activeHighlightWords = [];
                 activeHighlightPhrase = '';
@@ -1093,7 +1191,9 @@
             currentOpenBookId = bookId;
             bookPages = book.pages;
             totalPages = bookPages.length;
-            const requestedPageIndex = Number(pageToOpen);
+            const requestedPageIndex = pageToOpen === null
+                ? getSavedPageIndex(bookId)
+                : Number(pageToOpen);
             currentPageIndex = Number.isInteger(requestedPageIndex)
                 ? Math.min(Math.max(requestedPageIndex, 0), Math.max(totalPages - 1, 0))
                 : 0;
@@ -1142,10 +1242,13 @@
         function highlightWordsInContainer(container, words, phrase = '') {
             if ((!words || words.length === 0) && !phrase) return;
 
-            const safeWordsRegex = (words || []).map(escapeRegExp).join('|');
+            const safeWordsRegex = (words || [])
+                .map(createDiacriticsInsensitivePattern)
+                .filter(Boolean)
+                .join('|');
             const phraseText = typeof phrase === 'string' ? phrase.trim() : '';
             const safePhraseRegex = phraseText
-                ? escapeRegExp(phraseText).replace(/\s+/g, '\\s+')
+                ? createDiacriticsInsensitivePattern(phraseText, true)
                 : '';
 
             const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT, null, false);
@@ -1185,6 +1288,44 @@
             });
         }
 
+        function normalizeFootnoteText(text) {
+            return text
+                .replace(/\u00a0/g, ' ')
+                .replace(/[：:]/g, ':')
+                .replace(/\s+/g, ' ')
+                .trim();
+        }
+
+        function isFootnoteMarker(element) {
+            return /^الهوامش\s*:?$/.test(normalizeFootnoteText(element.textContent || ''));
+        }
+
+        function formatFootnotesInPage(container) {
+            const children = Array.from(container.children);
+            const marker = children.find(isFootnoteMarker);
+            if (!marker) return;
+
+            const footnotes = document.createElement('section');
+            footnotes.className = 'footnotes';
+            footnotes.setAttribute('aria-label', 'الهوامش');
+
+            const title = document.createElement('div');
+            title.className = 'footnotes-title';
+            title.textContent = 'الهوامش';
+            footnotes.appendChild(title);
+
+            marker.parentNode.insertBefore(footnotes, marker);
+            marker.remove();
+
+            let next = footnotes.nextElementSibling;
+            while (next) {
+                const nextText = normalizeFootnoteText(next.textContent || '');
+                footnotes.appendChild(next);
+                if (nextText === '') break;
+                next = footnotes.nextElementSibling;
+            }
+        }
+
         let renderTimer = null;
 
         function renderPage() {
@@ -1199,6 +1340,7 @@
             renderTimer = setTimeout(() => {
                 clearCustomSelection();
                 contentContainer.innerHTML = bookPages[currentPageIndex];
+                formatFootnotesInPage(contentContainer);
 
                 const shouldHighlightSearchResult =
                     activeHighlightBookId === currentOpenBookId &&
@@ -2026,6 +2168,59 @@
             return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
         }
 
+        function normalizeForSearch(value) {
+            return String(value || '')
+                .normalize('NFD')
+                .replace(/[\u064B-\u065F\u0670\u06D6-\u06ED]/g, '')
+                .replace(/[\u0640]/g, '')
+                .normalize('NFC');
+        }
+
+        function createDiacriticsInsensitivePattern(value, preserveWhitespace = false) {
+            const diacritics = '[\\u064B-\\u065F\\u0670\\u06D6-\\u06ED]*';
+            const normalizedValue = normalizeForSearch(value);
+            return Array.from(normalizedValue).map(character => {
+                if (/\s/.test(character)) return preserveWhitespace ? '\\s+' : '\\s*';
+                return `${escapeRegExp(character)}${diacritics}`;
+            }).join('');
+        }
+
+        function getSearchSourceParts(pageContent) {
+            const parsedDoc = new DOMParser().parseFromString(pageContent, 'text/html');
+            const directChildren = Array.from(parsedDoc.body.children);
+            const normalize = (value) => String(value || '').replace(/\u00a0/g, ' ').replace(/\s+/g, ' ').trim();
+            const headingElements = Array.from(parsedDoc.querySelectorAll(
+                'h1, h2, h3, h4, h5, h6, p[style*="color:red"], p[style*="color: red"]'
+            ));
+            const headingSet = new Set(headingElements);
+            const headingText = headingElements.map(element => normalize(element.textContent)).filter(Boolean).join(' ');
+            const footnoteMarkerIndex = directChildren.findIndex(element => /^الهوامش\s*:?$/.test(normalize(element.textContent)));
+            const footnoteMarker = footnoteMarkerIndex >= 0 ? directChildren[footnoteMarkerIndex] : null;
+            const footnoteElements = [];
+
+            if (footnoteMarkerIndex >= 0) {
+                for (let index = footnoteMarkerIndex + 1; index < directChildren.length; index++) {
+                    const element = directChildren[index];
+                    footnoteElements.push(element);
+                    if (!normalize(element.textContent)) break;
+                }
+            }
+
+            const footnoteSet = new Set(footnoteElements);
+            const footnoteText = footnoteElements
+                .map(element => normalize(element.textContent))
+                .filter(Boolean)
+                .join(' ');
+            const mainText = directChildren
+                .filter(element => element !== footnoteMarker && !footnoteSet.has(element) && !headingSet.has(element))
+                .map(element => normalize(element.textContent))
+                .filter(Boolean)
+                .join(' ');
+            const fullText = normalize(parsedDoc.body.textContent);
+
+            return { headingText, mainText, footnoteText, fullText };
+        }
+
         headerSearchBtn.addEventListener('click', () => {
             closeAllModals();
             if(currentOpenBookId === null) {
@@ -2055,57 +2250,88 @@
             const searchScope = document.querySelector('input[name="searchScope"]:checked').value;
             const booksToSearch = searchScope === 'all' ? booksData : booksData.filter(b => b.id === currentOpenBookId);
             
-            let htmlResults = ''; 
-            let resultCount = 0;
-            const highlightRegexStr = queryWords.map(escapeRegExp).join('|');
+            const searchResults = [];
+            const normalizedQueryWords = queryWords.map(normalizeForSearch).filter(Boolean);
+            const highlightRegexStr = normalizedQueryWords
+                .map(word => createDiacriticsInsensitivePattern(word))
+                .join('|');
             const highlightRegex = new RegExp(`(${highlightRegexStr})`, "gi");
+            const resultTypeLabels = {
+                heading: 'موضوع رئيسي',
+                text: 'نص',
+                footnote: 'هامش'
+            };
+
+            const matchesAllWords = (text) => {
+                const normalizedText = normalizeForSearch(text);
+                return normalizedQueryWords.every(word => {
+                    return normalizedText.includes(word);
+                });
+            };
 
             // جلب أي كتاب غير محمل قبل بدء البحث فيه
             for (const book of booksToSearch) {
                 await loadBookData(book);
             }
 
-            // بعد ضمان تحميل كل الكتب المطلوبة، نبدأ عملية البحث
+            // بعد ضمان تحميل كل الكتب المطلوبة، نصنف النتائج ونحفظ أولوية كل نتيجة
             booksToSearch.forEach(book => {
                 if(!book.pages) return; // تخطي في حال فشل تحميل الملف
 
                 book.pages.forEach((pageContent, pageIndex) => {
-                    const plainText = pageContent.replace(/<[^>]*>?/gm, ' '); 
-                    
-                    let isMatch = true;
-                    for(const word of queryWords) {
-                        const wordRegex = new RegExp(escapeRegExp(word), 'i');
-                        if(!wordRegex.test(plainText)) {
-                            isMatch = false;
-                            break;
-                        }
+                    const sourceParts = getSearchSourceParts(pageContent);
+                    if (!matchesAllWords(sourceParts.fullText)) return;
+
+                    let type = 'text';
+                    let sourceText = sourceParts.mainText || sourceParts.fullText;
+                    let priority = 2;
+
+                    if (matchesAllWords(sourceParts.headingText)) {
+                        type = 'heading';
+                        sourceText = sourceParts.headingText;
+                        priority = 1;
+                    } else if (sourceParts.footnoteText && matchesAllWords(sourceParts.footnoteText)) {
+                        type = 'footnote';
+                        sourceText = sourceParts.footnoteText;
+                        priority = 3;
                     }
 
-                    if(isMatch) {
-                        resultCount++;
-                        const firstMatch = plainText.match(new RegExp(escapeRegExp(queryWords[0]), 'i'));
-                        const matchIndex = firstMatch ? firstMatch.index : 0;
-                        
-                        const start = Math.max(0, matchIndex - 60);
-                        const end = Math.min(plainText.length, matchIndex + 60);
-                        let snippet = plainText.substring(start, end);
-                        
-                        snippet = snippet.replace(highlightRegex, `<span class="highlight">$1</span>`);
+                    const firstMatch = sourceText.match(new RegExp(
+                        createDiacriticsInsensitivePattern(normalizedQueryWords[0]),
+                        'i'
+                    ));
+                    const matchIndex = firstMatch ? firstMatch.index : 0;
+                    const start = Math.max(0, matchIndex - 60);
+                    const end = Math.min(sourceText.length, matchIndex + 60);
+                    let snippet = sourceText.substring(start, end);
+                    snippet = snippet.replace(highlightRegex, `<span class="highlight">$1</span>`);
 
-                        htmlResults += `
-                            <div class="search-result-item" onclick="openBookFromResult('${book.id}', ${pageIndex})">
-                                <div class="result-book-title">${book.title} (صفحة ${pageIndex + 1})</div>
-                                <div class="result-snippet">...${snippet}...</div>
-                            </div>
-                        `;
-                    }
+                    searchResults.push({
+                        book,
+                        pageIndex,
+                        type,
+                        priority,
+                        snippet
+                    });
                 });
             });
 
-            if(resultCount === 0) {
+            searchResults.sort((first, second) => (
+                first.priority - second.priority ||
+                first.book.part - second.book.part ||
+                first.pageIndex - second.pageIndex
+            ));
+
+            if(searchResults.length === 0) {
                 searchResultsArea.innerHTML = '<div style="text-align:center; color:var(--text-muted); margin-top:20px;">لم يتم العثور على نتائج.</div>';
             } else {
-                searchResultsArea.innerHTML = htmlResults;
+                searchResultsArea.innerHTML = searchResults.map(result => `
+                    <div class="search-result-item result-type-${result.type}" onclick="openBookFromResult('${result.book.id}', ${result.pageIndex})">
+                        <div class="result-book-title">${result.book.title} (صفحة ${result.pageIndex + 1})</div>
+                        <span class="search-result-type search-result-type-${result.type}">${resultTypeLabels[result.type]}</span>
+                        <div class="result-snippet">...${result.snippet}...</div>
+                    </div>
+                `).join('');
             }
         }
 
@@ -2148,7 +2374,7 @@
         // ----------------------------------------------------
         // 6. التحكم بحجم الخط والمظهر
         // ----------------------------------------------------
-        let currentFontSize = 22;
+        let currentFontSize = 14;
         const fontSizeSlider = document.getElementById('fontSizeSlider');
         const btnFontReset = document.getElementById('btnFontReset');
 
@@ -2163,8 +2389,8 @@
         });
 
         btnFontReset.addEventListener('click', () => {
-            currentFontSize = 22;
-            fontSizeSlider.value = 22;
+            currentFontSize = 14;
+            fontSizeSlider.value = 14;
             updateFontSize();
         });
 
@@ -2220,25 +2446,6 @@
             characterData: true
         });
 
-        function restoreLastReadingPosition() {
-            const savedPosition = localStorage.getItem(LAST_READING_KEY);
-            if (!savedPosition) return;
-
-            try {
-                const position = JSON.parse(savedPosition);
-                const savedBook = booksData.find(book => book.id === position.bookId);
-                const savedPageIndex = Number(position.pageIndex);
-
-                if (!savedBook) return;
-                if (!Number.isInteger(savedPageIndex) || savedPageIndex < 0) return;
-
-                openBook(savedBook.id, savedPageIndex);
-            } catch (error) {
-                console.warn('تعذر استعادة موضع القراءة المحفوظ:', error);
-                localStorage.removeItem(LAST_READING_KEY);
-            }
-        }
-
         function restoreReaderSettings() {
             const savedSettings = localStorage.getItem(READER_SETTINGS_KEY);
             if (!savedSettings) return;
@@ -2266,7 +2473,6 @@
         initHomeView();
         convertVisibleNumbersToArabic();
         restoreReaderSettings();
-        restoreLastReadingPosition();
 
     </script>
 </body>
