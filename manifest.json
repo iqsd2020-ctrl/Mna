@@ -1,0 +1,27 @@
+{
+  "name": "منة المنان — تفسير القرآن الكريم",
+  "short_name": "منة المنان",
+  "description": "تطبيق منة المنان لتفسير القرآن الكريم.",
+  "lang": "ar",
+  "dir": "rtl",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#F4ECD8",
+  "theme_color": "#8C6A43",
+  "icons": [
+    {
+      "src": "icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

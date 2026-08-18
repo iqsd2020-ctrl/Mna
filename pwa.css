@@ -1,0 +1,90 @@
+#pwaInstallOverlay {
+    position: fixed;
+    inset: 0;
+    z-index: 2000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    background: rgba(0, 0, 0, 0.58);
+    direction: rtl;
+    font-family: 'Tajawal', sans-serif;
+}
+
+#pwaInstallOverlay.pwa-hidden {
+    display: none;
+}
+
+.pwa-install-card {
+    width: min(100%, 390px);
+    padding: 28px 22px 22px;
+    border: 1px solid rgba(140, 106, 67, 0.3);
+    border-radius: 20px;
+    background: #FDF6E3;
+    color: #433422;
+    box-shadow: 0 18px 50px rgba(0, 0, 0, 0.25);
+    text-align: center;
+}
+
+.pwa-install-icon {
+    display: block;
+    width: 84px;
+    height: 84px;
+    margin: 0 auto 14px;
+    border-radius: 20px;
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.18);
+}
+
+.pwa-install-title {
+    margin: 0 0 10px;
+    color: #8C6A43;
+    font-size: 1.35rem;
+    font-weight: 700;
+}
+
+.pwa-install-text {
+    margin: 0 auto 20px;
+    color: #6b5a48;
+    font-size: 0.98rem;
+    line-height: 1.8;
+}
+
+.pwa-install-actions {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+}
+
+.pwa-install-actions button {
+    flex: 1;
+    min-height: 44px;
+    padding: 9px 12px;
+    border: 1px solid #8C6A43;
+    border-radius: 10px;
+    font-family: inherit;
+    font-size: 0.92rem;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+#pwaInstallButton {
+    background: #8C6A43;
+    color: #fff;
+}
+
+#pwaDismissButton {
+    background: transparent;
+    color: #8C6A43;
+}
+
+@media (prefers-color-scheme: dark) {
+    .pwa-install-card {
+        background: #1E1E1E;
+        color: #E5E7EB;
+        border-color: #374151;
+    }
+
+    .pwa-install-text {
+        color: #c3c7cf;
+    }
+}
