@@ -1,4 +1,4 @@
-const CACHE_NAME = 'mena-al-manan-v1';
+const CACHE_NAME = 'mena-al-manan-v2';
 
 const APP_SHELL = [
   './',

@@ -1217,7 +1217,20 @@
                 updatePageSlider();
                 saveLastReadingPosition();
                 contentContainer.style.fontSize = currentFontSize + 'px';
-                readerArea.scrollTo({ top: 0, behavior: 'smooth' });
+
+                const activeHighlight = contentContainer.querySelector('.highlight');
+                if (activeHighlight) {
+                    const targetTop = activeHighlight.getBoundingClientRect().top
+                        - readerArea.getBoundingClientRect().top
+                        + readerArea.scrollTop;
+                    readerArea.scrollTo({
+                        top: Math.max(targetTop - 80, 0),
+                        behavior: 'smooth'
+                    });
+                } else {
+                    readerArea.scrollTo({ top: 0, behavior: 'smooth' });
+                }
+
                 btnPrev.disabled = (currentPageIndex === 0);
                 btnNext.disabled = (currentPageIndex === totalPages - 1);
                 renderTimer = null;
@@ -1929,8 +1942,14 @@
                     item.appendChild(pageTitle);
                     item.appendChild(headingTitle);
                     item.addEventListener('click', () => {
+                        const targetPageIndex = heading.page - 1;
+                        activeHighlightWords = heading.title.split(/\s+/).filter(Boolean);
+                        activeHighlightPhrase = heading.title;
+                        activeHighlightBookId = currentIndexBookId;
+                        activeHighlightPageIndex = targetPageIndex;
+
                         closeAllModals();
-                        openBook(currentIndexBookId, heading.page - 1);
+                        openBook(currentIndexBookId, targetPageIndex, true);
                     });
 
                     indexList.appendChild(item);
